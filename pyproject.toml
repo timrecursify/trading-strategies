@@ -1,0 +1,13 @@
+[project]
+name = "crypto-futures-research"
+version = "1.0.0"
+description = "Systematic backtesting of crypto futures day trading strategies. 70,000+ tests across 16 research phases."
+requires-python = ">=3.10"
+license = {text = "MIT"}
+dependencies = []  # Pure stdlib. No external packages required.
+
+[project.urls]
+Repository = "https://github.com/timrecursify/crypto-futures-research"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
