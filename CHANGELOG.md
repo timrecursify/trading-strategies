@@ -4,6 +4,12 @@ Research evolution log. Each entry documents a research phase, what was tested, 
 
 ## 2026-03-25
 
+### Phase 17: Portfolio Strategy and Paper Trading Deployment
+- Tested portfolio combinations: DT only, DT+shorts, DT+NYC, DT+shorts+NYC, full portfolio with RSI2 and Pairs.
+- Fixed SMA200 look-ahead bug (was using today's close, now uses prior day's close).
+- **Finding:** DT+shorts+NYC is the best combo: 526 trades, +0.541% avg/trade, +35.5% annual fixed-size, 12.2% DD. Adding shorts below SMA200 and NYC session nearly triples trade frequency.
+- Deployed paper trader to VPS with two sessions (London 07:00, NYC 12:00), short breakouts below SMA200, and 5 cron jobs.
+
 ### Phase 16: Dual Thrust Grid Search (41,344 combinations)
 - Tested Dual Thrust breakout strategy with parameters N (lookback 1-5), K (multiplier 0.3-0.8), stops, exits, and regime filters.
 - **Finding:** ETH Dual Thrust (N3 K0.5 SMA200) is the overall winner: $1,000 to $3,443, 12.4% DD, Ret/DD 19.63.
