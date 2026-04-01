@@ -82,7 +82,15 @@ Pairs trading offers the best drawdown profile. Dual Thrust has a higher Ret/DD 
 
 ## Limitations
 
-- Detailed parameters (lookback period, entry/exit thresholds, stop divergence level) were not fully specified in the testing results. The +33% return and 8.7% DD are summary figures.
 - Yearly breakdown was not provided for this strategy.
 - Execution in live markets is more complex than single-leg strategies. Two simultaneous orders, margin requirements for both positions, and potential for partial fills add operational risk.
 - The strategy requires margin for both a long and a short position simultaneously, which may limit position size on accounts with low margin capacity.
+- Funding rate costs are not modeled in paper trading. A 10-day hold incurs ~0.3% in funding at 0.01% per 8h.
+
+## Paper Trading Status (as of 2026-04-01)
+
+**Deployed** on VPS via `live/paper_main.py`.
+
+- **Parameters:** Window=30 days, z_entry=2.0, z_exit=0.5, max_hold=10 days, 5% max loss safety cap.
+- **Scan:** Daily at 00:05 UTC. Z-score and rolling stats recomputed daily.
+- **First signal:** Entered on deployment day (z=-2.28, LONG BTC + SHORT ETH).

@@ -111,3 +111,12 @@ Dual Thrust is strictly superior on multi-year data. Asia Breakout remains usefu
 - Does not work on BTC (Sharpe -0.36 on 1 year).
 - Requires the SMA200 filter for multi-year viability.
 - 37.8% drawdown with the filter is still higher than Dual Thrust's 12.4%.
+
+## Paper Trading Status (as of 2026-04-01)
+
+**Deployed** on VPS via `live/paper_main.py`.
+
+- **Symbols:** All 8 pairs. Only ETH was backtested; BTC showed negative Sharpe on 1 year. All other pairs are experimental.
+- **Parameters:** 0.5% stop, 1:1 R:R, entry window 07:00-10:00 UTC, time exit 12:00 UTC. No SMA200 filter (takes both long and short breakouts).
+- **Setup:** Asia range (00:00-07:00 UTC) computed from 1h candles at 07:00.
+- **Note:** Altcoins (DOGE, ADA) may not exhibit the same Asia consolidation pattern as ETH. Paper trading will reveal whether the strategy generalizes.

@@ -127,3 +127,13 @@ Non-scaled RSI(2) < 10 was negative on both pairs. The scaling mechanism transfo
 - 45.6% drawdown requires the SMA200 filter for practical deployment, reducing returns substantially.
 - Walk-forward results for this specific strategy variant were not independently reported in the testing document.
 - The strategy is long-only. A short-side equivalent (RSI(2) > 90, short, scale in) was not tested.
+
+## Paper Trading Status (as of 2026-04-01)
+
+**Deployed** on VPS via `live/paper_main.py`.
+
+- **Symbols:** All 8 pairs (only ETH and BTC were backtested; others are experimental).
+- **Parameters:** RSI(2)<10 entry, 50/50 scale-in on RSI(5) drop of 5+ points, 3% stop, prev_high exit, 10-day max hold.
+- **No SMA200 filter** in paper trading (maximizes signal frequency for data collection).
+- **Scan:** Daily at 00:05 UTC. Prev_high updated daily for open positions.
+- **Risk note:** With 8 simultaneous long positions possible during a selloff, max correlated loss is ~16% of portfolio (8 x 2% risk). Circuit breaker halts new entries at 30% portfolio DD.

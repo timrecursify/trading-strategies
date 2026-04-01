@@ -116,3 +116,12 @@ The adaptive range is the critical difference. When volatility expands, the rang
 - **SMA200 computation:** Use the daily close from the prior day. Do not update intraday.
 - **Position sizing:** With 2% risk and a 1% stop, the position size is 2x the account value (before leverage cap).
 - **Multiple entries:** Only one position per day. If stopped out, do not re-enter.
+
+## Paper Trading Status (as of 2026-04-01)
+
+**Deployed** on VPS via `live/paper_main.py` as part of the multi-strategy system.
+
+- **Symbols:** All 8 (BTCUSDT, ETHUSDT, SOLUSDT, DOGEUSDT, XRPUSDT, AVAXUSDT, LINKUSDT, ADAUSDT). Only ETH was backtested; other pairs are experimental.
+- **Sessions:** London (07:00-16:00 UTC) and NYC (12:00-20:00 UTC).
+- **Regime:** SMA200 filter. Longs above SMA200, shorts below. As of deployment, all 8 pairs are below SMA200 (bear regime, shorts only).
+- **Architecture:** Setup+tick pattern. Triggers computed at session open (cron), prices checked every 60s (tick cron).

@@ -2,6 +2,21 @@
 
 Research evolution log. Each entry documents a research phase, what was tested, and the key finding.
 
+## 2026-04-01
+
+### Phase 18: Multi-Symbol Multi-Strategy Paper Trading
+- Expanded paper trading from 1 symbol / 1 strategy to 8 symbols / 4 strategies.
+- **Symbols added:** SOLUSDT, DOGEUSDT, XRPUSDT, AVAXUSDT, LINKUSDT, ADAUSDT (experimental, no backtest data).
+- **Strategies deployed:**
+  - Dual Thrust (8 symbols, London + NYC sessions) -- N=3, K=0.5, 1% stop, SMA200 filter
+  - Asia Breakout (8 symbols, London session) -- 0.5% stop, 1:1 R:R, 07:00-10:00 entry window
+  - Scale-In RSI(2) (8 symbols, daily) -- RSI(2)<10 entry, 3% stop, 10-day max hold, long-only
+  - Pairs Trading (BTC/ETH only, daily) -- 30-day z-score, entry at |z|>2.0, exit at |z|<0.5
+- **Architecture change:** Replaced long-polling scan with setup+tick cron pattern. Setup commands compute trigger levels at session open; tick (every 60s) checks prices against triggers and monitors positions.
+- **Risk controls:** 2% per-trade risk, 20x max portfolio exposure, 30% drawdown circuit breaker, max 3 positions per symbol.
+- **API finding:** VPS is US-based; `fapi.binance.com` (futures) is geo-blocked. Using `api.binance.us` spot prices as proxy (~0.1% difference from perp futures).
+- **Finding:** Pairs Trading entered immediately on deployment (BTC/ETH z=-2.28, long BTC + short ETH). All other crypto assets in bear regime (below SMA200), so DT only takes shorts.
+
 ## 2026-03-25
 
 ### Phase 17: Portfolio Strategy and Paper Trading Deployment

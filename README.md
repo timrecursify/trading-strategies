@@ -17,25 +17,26 @@ crypto-futures-research/
 ├── .gitignore
 ├── CHANGELOG.md
 ├── config/                      # Constants, symbols, parameter grids
+│   ├── constants.py             # Fees, session hours, risk defaults
+│   ├── parameters.py            # Strategy parameter grids
+│   └── symbols.py               # 8 USDT-M pairs metadata
 ├── core/                        # Backtest engine, indicators, data loaders
-├── strategies/                  # Strategy implementations
+├── strategies/                  # Strategy implementations (backtesting)
 ├── research/                    # Phase-specific research scripts
 ├── data/                        # Download scripts, schema
-├── live/                        # Paper trader, cron setup
+├── live/                        # Paper trading system
+│   ├── paper_trader.py          # Legacy single-strategy paper trader (ETH DT)
+│   ├── paper_main.py            # Multi-strategy CLI entry point
+│   ├── paper_api.py             # Binance.us API layer
+│   ├── paper_portfolio.py       # State, risk, position management
+│   ├── paper_strategies.py      # 4 strategy implementations
+│   └── cron_multi.sh            # Cron job setup (8 jobs)
 ├── tests/                       # Unit tests
 ├── docs/
 │   ├── methodology.md           # Research methodology, bias prevention
 │   ├── data_dictionary.md       # Database schema documentation
 │   ├── results/                 # Per-phase result reports (15 files)
-│   │   ├── 00_executive_summary.md
-│   │   ├── 01_session_correlation.md
-│   │   ├── ...
-│   │   └── 14_final_rankings.md
 │   └── strategies/              # Strategy specifications
-│       ├── dual_thrust.md
-│       ├── asia_breakout.md
-│       ├── scale_in_rsi2.md
-│       └── pairs_trading.md
 └── pyproject.toml               # Package metadata
 ```
 
@@ -70,15 +71,45 @@ python research/phase_02_v1_grid_search.py
 # ... (see research/ directory)
 ```
 
-### Paper Trading
+### Paper Trading (Multi-Strategy)
 
 ```bash
-# Start paper trader
-python live/paper_trader.py
+# Check portfolio status
+python live/paper_main.py status
 
-# Check status
+# Manual commands (normally run via cron)
+python live/paper_main.py scan_daily          # RSI2 + Pairs daily scan
+python live/paper_main.py setup_dt london     # Dual Thrust London triggers
+python live/paper_main.py setup_dt nyc        # Dual Thrust NYC triggers
+python live/paper_main.py setup_ab            # Asia Breakout levels
+python live/paper_main.py tick                # Check signals + monitor
+python live/paper_main.py exit_session london # Time-exit DT London
+python live/paper_main.py exit_session nyc    # Time-exit DT NYC
+python live/paper_main.py exit_ab             # Time-exit Asia Breakout
+```
+
+### Paper Trading (Legacy Single-Strategy)
+
+```bash
 python live/paper_trader.py status
 ```
+
+## Symbols
+
+Paper trading runs across 8 Binance USDT-M perpetual futures pairs:
+
+| Symbol | Backtested | Paper Trading |
+|--------|-----------|---------------|
+| BTCUSDT | Yes (6.3 years) | All 4 strategies |
+| ETHUSDT | Yes (6.3 years) | All 4 strategies |
+| SOLUSDT | No | Experimental |
+| DOGEUSDT | No | Experimental |
+| XRPUSDT | No | Experimental |
+| AVAXUSDT | No | Experimental |
+| LINKUSDT | No | Experimental |
+| ADAUSDT | No | Experimental |
+
+Only BTC and ETH have full backtest validation. The other 6 pairs are experimental -- the purpose of paper trading is to evaluate whether the strategies generalize.
 
 ## Data
 
@@ -92,6 +123,8 @@ All data is sourced from public Binance APIs:
 | Funding Rate | Binance Futures | 1,095/symbol | 365 days |
 
 The database file (`futures_data.db`, ~1.1 GB) is excluded from the repository. Use the download scripts to reproduce it.
+
+Paper trading uses live spot prices from `api.binance.us` as a proxy for futures prices (within ~0.1% due to funding rate premium). The `fapi.binance.com` futures API is geo-blocked from US-based servers.
 
 ## Results Summary
 
