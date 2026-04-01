@@ -1,0 +1,20 @@
+{
+  "balance": 1000.0,
+  "positions": {
+    "pairs_BTCETH": {
+      "strategy": "pairs",
+      "symbol": "BTCUSDT+ETHUSDT",
+      "direction": 1,
+      "btc_entry": 68348.68,
+      "eth_entry": 2156.02,
+      "position_size": 400.0,
+      "entry_z": -2.275983548281965,
+      "ratio_mean": 33.41407061147774,
+      "ratio_std": 0.7525320593419912,
+      "entry_day": 0,
+      "max_hold_days": 10,
+      "entry_time": "2026-04-01T21:46:57.896748+00:00"
+    }
+  },
+  "pending": {}
+}
