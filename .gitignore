@@ -1,9 +1,16 @@
 # Database files (large, reproducible via download scripts)
 futures_data.db
 paper_trades.db
+paper_trades_v2.db
 
 # Runtime state
 paper_state.json
+paper_state_v2.json
+
+# Logs and locks
+paper.log
+paper_v2.log
+paper_v2.lock
 
 # Python
 __pycache__/

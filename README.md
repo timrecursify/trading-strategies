@@ -124,7 +124,7 @@ All data is sourced from public Binance APIs:
 
 The database file (`futures_data.db`, ~1.1 GB) is excluded from the repository. Use the download scripts to reproduce it.
 
-Paper trading uses live spot prices from `api.binance.us` as a proxy for futures prices (within ~0.1% due to funding rate premium). The `fapi.binance.com` futures API is geo-blocked from US-based servers.
+Paper trading uses live futures prices from `fapi.binance.com` (Binance USDT-M perpetual futures API). The system runs on a Raspberry Pi with direct API access to 609 futures symbols, trading 51 pairs across 4 strategies.
 
 ## Results Summary
 

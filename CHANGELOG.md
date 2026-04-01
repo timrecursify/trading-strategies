@@ -4,6 +4,12 @@ Research evolution log. Each entry documents a research phase, what was tested, 
 
 ## 2026-04-01
 
+### Phase 19: Migration to Raspberry Pi + 51 Futures Pairs
+- Migrated paper trading from US VPS (api.binance.us, spot proxy) to Raspberry Pi in Mexico (fapi.binance.com, real futures API).
+- Expanded from 8 to 51 Binance USDT-M perpetual futures pairs across all liquidity tiers.
+- Switched all API endpoints from `/api/v3/` (spot) to `/fapi/v1/` and `/fapi/v2/` (futures). Response formats identical, no parsing changes needed.
+- **Finding:** VPS geo-blocked from fapi.binance.com. Pi in Mexico has full access to 609 futures symbols.
+
 ### Phase 18: Multi-Symbol Multi-Strategy Paper Trading
 - Expanded paper trading from 1 symbol / 1 strategy to 8 symbols / 4 strategies.
 - **Symbols added:** SOLUSDT, DOGEUSDT, XRPUSDT, AVAXUSDT, LINKUSDT, ADAUSDT (experimental, no backtest data).

@@ -29,7 +29,7 @@ SESSIONS = {
     "nyc":    {"entry_h": 12, "exit_h": 20},
 }
 
-BASE_URL = "https://api.binance.us"
+BASE_URL = "https://fapi.binance.com"
 STATE_FILE = "paper_state.json"
 TRADE_LOG = "paper_trades.db"
 
@@ -45,7 +45,7 @@ def fetch_json(url):
 
 
 def get_daily_candles(symbol, limit=210):
-    url = f"{BASE_URL}/api/v3/klines?symbol={symbol}&interval=1d&limit={limit}"
+    url = f"{BASE_URL}/fapi/v1/klines?symbol={symbol}&interval=1d&limit={limit}"
     data = fetch_json(url)
     return [{"open_time": int(k[0]), "open": float(k[1]), "high": float(k[2]),
              "low": float(k[3]), "close": float(k[4]), "volume": float(k[5])}
@@ -53,7 +53,7 @@ def get_daily_candles(symbol, limit=210):
 
 
 def get_current_price(symbol):
-    url = f"{BASE_URL}/api/v3/ticker/price?symbol={symbol}"
+    url = f"{BASE_URL}/fapi/v2/ticker/price?symbol={symbol}"
     return float(fetch_json(url)["price"])
 
 

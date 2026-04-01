@@ -1,13 +1,12 @@
 """
-Binance.us API layer for paper trading.
-Uses spot endpoints as proxy for USDT-M futures prices.
-(fapi.binance.com is geo-blocked from US VPS.)
+Binance Futures API (fapi.binance.com) layer for paper trading.
+Uses USDT-M perpetual futures endpoints for real futures prices.
 """
 
 import json
 import urllib.request
 
-BASE_URL = "https://api.binance.us"
+BASE_URL = "https://fapi.binance.com"
 TIMEOUT = 15
 
 
@@ -21,7 +20,7 @@ def fetch_json(url):
 
 def get_daily_candles(symbol, limit=210):
     """Fetch daily OHLCV candles. Returns list of dicts."""
-    url = f"{BASE_URL}/api/v3/klines?symbol={symbol}&interval=1d&limit={limit}"
+    url = f"{BASE_URL}/fapi/v1/klines?symbol={symbol}&interval=1d&limit={limit}"
     data = fetch_json(url)
     return [
         {
@@ -38,7 +37,7 @@ def get_daily_candles(symbol, limit=210):
 
 def get_hourly_candles(symbol, limit=7):
     """Fetch hourly candles (used for Asia session range 00:00-07:00)."""
-    url = f"{BASE_URL}/api/v3/klines?symbol={symbol}&interval=1h&limit={limit}"
+    url = f"{BASE_URL}/fapi/v1/klines?symbol={symbol}&interval=1h&limit={limit}"
     data = fetch_json(url)
     return [
         {
@@ -53,7 +52,7 @@ def get_hourly_candles(symbol, limit=7):
 
 def get_current_price(symbol):
     """Fetch current price for a single symbol."""
-    url = f"{BASE_URL}/api/v3/ticker/price?symbol={symbol}"
+    url = f"{BASE_URL}/fapi/v2/ticker/price?symbol={symbol}"
     return float(fetch_json(url)["price"])
 
 
@@ -61,7 +60,7 @@ def get_batch_prices(symbols):
     """Fetch prices for all symbols in one API call.
     Returns dict: {symbol: price} for requested symbols only.
     """
-    url = f"{BASE_URL}/api/v3/ticker/price"
+    url = f"{BASE_URL}/fapi/v2/ticker/price"
     data = fetch_json(url)
     sym_set = set(symbols)
     return {
