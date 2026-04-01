@@ -14,7 +14,7 @@ TRADE_LOG = "paper_trades_v2.db"
 
 TAKER_FEE = 0.0004
 SLIPPAGE = 0.0002  # conservative for altcoins
-STARTING_BALANCE = 1000.0
+STARTING_BALANCE = 200000.0
 MAX_EXPOSURE_MULT = 20
 MAX_POSITIONS_PER_SYMBOL = 3
 DD_CIRCUIT_BREAKER = 0.70  # stop new entries below 70% of starting balance
