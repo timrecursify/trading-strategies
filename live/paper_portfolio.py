@@ -1,6 +1,9 @@
 """
 Portfolio state management, risk sizing, position closing, and DB logging
 for the multi-symbol multi-strategy paper trading system.
+
+Each (strategy, symbol) pair gets an isolated $1,000 allocation.
+P&L is tracked per slot independently.
 """
 
 import json
@@ -14,10 +17,8 @@ TRADE_LOG = "paper_trades_v2.db"
 
 TAKER_FEE = 0.0004
 SLIPPAGE = 0.0002  # conservative for altcoins
-STARTING_BALANCE = 200000.0
-MAX_EXPOSURE_MULT = 20
-MAX_POSITIONS_PER_SYMBOL = 3
-DD_CIRCUIT_BREAKER = 0.70  # stop new entries below 70% of starting balance
+SLOT_BALANCE = 1000.0  # $1,000 per (strategy, symbol) pair
+DD_CIRCUIT_BREAKER = 0.70  # stop slot entries below 70% of SLOT_BALANCE
 RISK_PCT = 0.02
 MAX_LEVERAGE = 10
 
@@ -38,7 +39,7 @@ def load_state():
         except (json.JSONDecodeError, IOError) as e:
             ps(f"ERROR: state file corrupt: {e}")
             sys.exit(1)
-    return {"balance": STARTING_BALANCE, "positions": {}, "pending": {}}
+    return {"allocations": {}, "positions": {}, "pending": {}}
 
 
 def save_state(state):
@@ -72,8 +73,47 @@ def init_db():
     conn.close()
 
 
+def _alloc_key(strategy, symbol):
+    """Allocation key for a (strategy, symbol) slot."""
+    return f"{strategy}_{symbol}"
+
+
+def _alloc_key_from_pos(pos_key):
+    """Derive allocation key from position key.
+    dt_BTCUSDT_london -> dt_BTCUSDT
+    ab_BTCUSDT -> ab_BTCUSDT
+    rsi2_BTCUSDT -> rsi2_BTCUSDT
+    pairs_BTCETH -> pairs_BTCETH
+    """
+    parts = pos_key.split("_")
+    if parts[0] == "dt" and len(parts) == 3:
+        return f"{parts[0]}_{parts[1]}"
+    return pos_key
+
+
+def get_slot_balance(state, strategy, symbol):
+    """Get current balance for a (strategy, symbol) slot.
+    Creates the slot with SLOT_BALANCE if it doesn't exist yet.
+    """
+    allocs = state.setdefault("allocations", {})
+    key = _alloc_key(strategy, symbol)
+    if key not in allocs:
+        allocs[key] = SLOT_BALANCE
+    return allocs[key]
+
+
+def total_balance(state):
+    """Sum of all slot allocations."""
+    return sum(state.get("allocations", {}).values())
+
+
+def total_exposure(state):
+    """Sum of all open position sizes."""
+    return sum(p.get("position_size", 0) for p in state["positions"].values())
+
+
 def log_trade(strategy, symbol, session, direction, entry, exit_p,
-              stop, pnl_pct, pnl_dollar, reason, balance):
+              stop, pnl_pct, pnl_dollar, reason, slot_bal):
     conn = sqlite3.connect(TRADE_LOG)
     conn.execute(
         "INSERT INTO trades (timestamp, strategy, symbol, session, direction, "
@@ -81,7 +121,7 @@ def log_trade(strategy, symbol, session, direction, entry, exit_p,
         "reason, balance_after) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
         (datetime.now(timezone.utc).isoformat(), strategy, symbol, session,
          "LONG" if direction == 1 else "SHORT",
-         entry, exit_p, stop, pnl_pct, pnl_dollar, reason, balance))
+         entry, exit_p, stop, pnl_pct, pnl_dollar, reason, slot_bal))
     conn.commit()
     conn.close()
 
@@ -97,39 +137,26 @@ def log_daily(strategy, symbol, session, balance, detail, action):
     conn.close()
 
 
-def total_exposure(state):
-    """Sum of all open position sizes."""
-    return sum(p.get("position_size", 0) for p in state["positions"].values())
-
-
-def can_open_position(state, symbol):
-    """Check portfolio-level and per-symbol limits."""
-    if state["balance"] < STARTING_BALANCE * DD_CIRCUIT_BREAKER:
-        ps(f"SKIP: circuit breaker active (balance ${state['balance']:.2f})")
-        return False
-    if total_exposure(state) >= state["balance"] * MAX_EXPOSURE_MULT:
-        ps(f"SKIP: exposure cap reached")
-        return False
-    sym_count = sum(
-        1 for p in state["positions"].values()
-        if p.get("symbol") == symbol
-    )
-    if sym_count >= MAX_POSITIONS_PER_SYMBOL:
-        ps(f"SKIP: max positions for {symbol}")
+def can_open_position(state, strategy, symbol):
+    """Check if a (strategy, symbol) slot can open a position."""
+    slot_bal = get_slot_balance(state, strategy, symbol)
+    if slot_bal < SLOT_BALANCE * DD_CIRCUIT_BREAKER:
+        ps(f"SKIP: {strategy}_{symbol} circuit breaker "
+           f"(${slot_bal:.2f} < ${SLOT_BALANCE * DD_CIRCUIT_BREAKER:.0f})")
         return False
     return True
 
 
-def compute_position_size(balance, risk_pct, stop_pct):
-    """Position size from risk amount and stop distance."""
-    risk_amt = balance * risk_pct
+def compute_position_size(slot_balance, risk_pct, stop_pct):
+    """Position size from slot balance, risk amount, and stop distance."""
+    risk_amt = slot_balance * risk_pct
     size = risk_amt / (stop_pct / 100)
-    max_size = balance * MAX_LEVERAGE
+    max_size = slot_balance * MAX_LEVERAGE
     return min(size, max_size)
 
 
 def close_position(state, pos_key, exit_price, reason):
-    """Close a single-leg position and update balance."""
+    """Close a single-leg position and update slot allocation."""
     pos = state["positions"][pos_key]
     direction = pos["direction"]
     entry = pos.get("avg_entry_price", pos["entry_price"])
@@ -142,24 +169,26 @@ def close_position(state, pos_key, exit_price, reason):
     fee_cost = (TAKER_FEE + SLIPPAGE) * 2
     net_pnl = pos_size * (raw_pnl_pct - fee_cost)
 
-    state["balance"] += net_pnl
-    prev_bal = state["balance"] - net_pnl
-    pnl_pct = (net_pnl / prev_bal * 100) if prev_bal > 0 else 0
+    alloc_key = _alloc_key_from_pos(pos_key)
+    allocs = state.setdefault("allocations", {})
+    old_bal = allocs.get(alloc_key, SLOT_BALANCE)
+    allocs[alloc_key] = old_bal + net_pnl
+    pnl_pct = (net_pnl / old_bal * 100) if old_bal > 0 else 0
 
     dir_str = "LONG" if direction == 1 else "SHORT"
     ps(f"[{strategy}] CLOSED {dir_str} {symbol} {reason}: "
        f"Exit ${exit_price:.4f}, P&L ${net_pnl:+.2f} ({pnl_pct:+.2f}%), "
-       f"Balance ${state['balance']:.2f}")
+       f"Slot ${allocs[alloc_key]:.2f}")
 
     log_trade(strategy, symbol, session, direction, entry, exit_price,
               pos.get("stop_price", 0), pnl_pct, net_pnl, reason,
-              state["balance"])
+              allocs[alloc_key])
 
     del state["positions"][pos_key]
 
 
 def close_pairs_position(state, pos_key, btc_price, eth_price, reason):
-    """Close a pairs trade (two legs) and update balance."""
+    """Close a pairs trade (two legs) and update slot allocation."""
     pos = state["positions"][pos_key]
     direction = pos["direction"]
     pos_size = pos["position_size"]
@@ -170,25 +199,30 @@ def close_pairs_position(state, pos_key, btc_price, eth_price, reason):
     fee_cost = (TAKER_FEE + SLIPPAGE) * 2
     net_pnl = half_size * (btc_pnl_raw - fee_cost) + half_size * (eth_pnl_raw - fee_cost)
 
-    state["balance"] += net_pnl
-    prev_bal = state["balance"] - net_pnl
-    pnl_pct = (net_pnl / prev_bal * 100) if prev_bal > 0 else 0
+    alloc_key = _alloc_key_from_pos(pos_key)
+    allocs = state.setdefault("allocations", {})
+    old_bal = allocs.get(alloc_key, SLOT_BALANCE)
+    allocs[alloc_key] = old_bal + net_pnl
+    pnl_pct = (net_pnl / old_bal * 100) if old_bal > 0 else 0
 
     ps(f"[pairs] CLOSED BTC/ETH {reason}: "
        f"BTC ${btc_price:.2f} ETH ${eth_price:.2f}, "
        f"P&L ${net_pnl:+.2f} ({pnl_pct:+.2f}%), "
-       f"Balance ${state['balance']:.2f}")
+       f"Slot ${allocs[alloc_key]:.2f}")
 
     log_trade("pairs", "BTCUSDT+ETHUSDT", "", direction,
               pos["btc_entry"], btc_price, 0,
-              pnl_pct, net_pnl, reason, state["balance"])
+              pnl_pct, net_pnl, reason, allocs[alloc_key])
 
     del state["positions"][pos_key]
 
 
 def print_status(state):
     """Print full portfolio status."""
-    ps(f"Balance: ${state['balance']:.2f}")
+    allocs = state.get("allocations", {})
+    total = sum(allocs.values()) if allocs else 0
+    active_slots = len(allocs)
+    ps(f"Total balance: ${total:.2f} across {active_slots} slots")
     ps(f"Open positions: {len(state['positions'])}")
     ps(f"Pending signals: {len(state.get('pending', {}))}")
     ps(f"Total exposure: ${total_exposure(state):.2f}")
@@ -198,8 +232,11 @@ def print_status(state):
         sym = pos.get("symbol", "")
         d = "LONG" if pos.get("direction", 0) == 1 else "SHORT"
         entry = pos.get("entry_price", pos.get("btc_entry", 0))
+        akey = _alloc_key_from_pos(key)
+        slot_bal = allocs.get(akey, SLOT_BALANCE)
         ps(f"  [{strat}] {key}: {d} {sym} entry=${entry:.4f} "
-           f"size=${pos.get('position_size', 0):.0f}")
+           f"size=${pos.get('position_size', 0):.0f} "
+           f"slot=${slot_bal:.2f}")
 
     conn = sqlite3.connect(TRADE_LOG)
     try:

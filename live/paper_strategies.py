@@ -18,6 +18,7 @@ from live.paper_api import get_daily_candles, get_hourly_candles, get_batch_pric
 from live.paper_portfolio import (
     ps, can_open_position, compute_position_size, close_position,
     close_pairs_position, log_daily, save_state, RISK_PCT,
+    get_slot_balance, total_balance,
 )
 from core.indicators import rsi, sma
 from config.symbols import PAPER_SYMBOLS
@@ -104,7 +105,7 @@ def setup_dual_thrust(state, session_name, prices):
         ps(f"[DT] {symbol} {session_name}: {regime} "
            f"BUY>{buy_t:.4f} SELL<{sell_t:.4f} Rng={rng:.4f} "
            f"SMA200={sma200:.4f}")
-        log_daily("dual_thrust", symbol, session_name, state["balance"],
+        log_daily("dual_thrust", symbol, session_name, total_balance(state),
                   f"buy>{buy_t:.4f} sell<{sell_t:.4f} sma={sma200:.4f}",
                   f"SETUP_{regime.split()[0]}")
 
@@ -126,7 +127,7 @@ def tick_dual_thrust(state, prices):
         if key in state["positions"]:
             to_remove.append(key)
             continue
-        if not can_open_position(state, symbol):
+        if not can_open_position(state, "dual_thrust", symbol):
             continue
 
         entered = False
@@ -143,8 +144,9 @@ def tick_dual_thrust(state, prices):
 
         if entered:
             stop = trigger_price * (1 - direction * DT_STOP_PCT / 100)
+            slot_bal = get_slot_balance(state, "dual_thrust", symbol)
             pos_size = compute_position_size(
-                state["balance"], RISK_PCT, DT_STOP_PCT)
+                slot_bal, RISK_PCT, DT_STOP_PCT)
             session = sig["session"]
             state["positions"][key] = {
                 "strategy": "dual_thrust",
@@ -160,7 +162,7 @@ def tick_dual_thrust(state, prices):
             d = "LONG" if direction == 1 else "SHORT"
             ps(f"[DT] {d} {symbol} @ ${price:.4f} "
                f"stop=${stop:.4f} size=${pos_size:.0f}")
-            log_daily("dual_thrust", symbol, session, state["balance"],
+            log_daily("dual_thrust", symbol, session, total_balance(state),
                       f"entry={price:.4f} stop={stop:.4f}",
                       f"ENTRY_{d}@{price:.4f}")
 
@@ -197,7 +199,7 @@ def setup_asia_breakout(state, prices):
             "expires_h": 10,
         }
         ps(f"[AB] {symbol}: Asia H={asia_high:.4f} L={asia_low:.4f}")
-        log_daily("asia_breakout", symbol, "london", state["balance"],
+        log_daily("asia_breakout", symbol, "london", total_balance(state),
                   f"high={asia_high:.4f} low={asia_low:.4f}", "SETUP")
 
 
@@ -218,7 +220,7 @@ def tick_asia_breakout(state, prices):
         if key in state["positions"]:
             to_remove.append(key)
             continue
-        if not can_open_position(state, symbol):
+        if not can_open_position(state, "asia_breakout", symbol):
             continue
 
         entered = False
@@ -237,8 +239,9 @@ def tick_asia_breakout(state, prices):
             stop_dist = price * AB_STOP_PCT / 100
             stop = price - direction * stop_dist
             tp = price + direction * stop_dist * AB_RR
+            slot_bal = get_slot_balance(state, "asia_breakout", symbol)
             pos_size = compute_position_size(
-                state["balance"], RISK_PCT, AB_STOP_PCT)
+                slot_bal, RISK_PCT, AB_STOP_PCT)
             state["positions"][key] = {
                 "strategy": "asia_breakout",
                 "symbol": symbol,
@@ -254,7 +257,7 @@ def tick_asia_breakout(state, prices):
             d = "LONG" if direction == 1 else "SHORT"
             ps(f"[AB] {d} {symbol} @ ${price:.4f} "
                f"stop=${stop:.4f} tp=${tp:.4f}")
-            log_daily("asia_breakout", symbol, "london", state["balance"],
+            log_daily("asia_breakout", symbol, "london", total_balance(state),
                       f"entry={price:.4f} stop={stop:.4f} tp={tp:.4f}",
                       f"ENTRY_{d}@{price:.4f}")
 
@@ -310,14 +313,15 @@ def scan_rsi2(state, prices):
         if current_rsi2 >= RSI2_THRESHOLD:
             ps(f"[RSI2] {symbol}: RSI2={current_rsi2:.1f} (no signal)")
             continue
-        if not can_open_position(state, symbol):
+        if not can_open_position(state, "rsi2", symbol):
             continue
         price = prices.get(symbol)
         if not price or price <= 0:
             continue
 
+        slot_bal = get_slot_balance(state, "rsi2", symbol)
         intended_size = compute_position_size(
-            state["balance"], RISK_PCT, RSI2_STOP_PCT)
+            slot_bal, RISK_PCT, RSI2_STOP_PCT)
         half_size = intended_size * 0.5
         stop = price * (1 - RSI2_STOP_PCT / 100)
 
@@ -339,7 +343,7 @@ def scan_rsi2(state, prices):
         }
         ps(f"[RSI2] LONG {symbol} @ ${price:.4f} RSI2={current_rsi2:.1f} "
            f"stop=${stop:.4f} size=${half_size:.0f}/{intended_size:.0f}")
-        log_daily("rsi2", symbol, "", state["balance"],
+        log_daily("rsi2", symbol, "", total_balance(state),
                   f"entry={price:.4f} rsi2={current_rsi2:.1f}",
                   f"ENTRY_LONG@{price:.4f}")
 
@@ -389,7 +393,7 @@ def scan_pairs(state, prices):
     if abs(z) <= PAIRS_Z_ENTRY:
         ps(f"[PAIRS] BTC/ETH z={z:.2f} (no signal)")
         return
-    if not can_open_position(state, "BTCUSDT"):
+    if not can_open_position(state, "pairs", "BTCUSDT+ETHUSDT"):
         return
 
     btc_price = prices.get("BTCUSDT")
@@ -398,8 +402,9 @@ def scan_pairs(state, prices):
         return
 
     direction = -1 if z > 0 else 1
+    slot_bal = get_slot_balance(state, "pairs", "BTCUSDT+ETHUSDT")
     pos_size = compute_position_size(
-        state["balance"], RISK_PCT, PAIRS_MAX_LOSS_PCT)
+        slot_bal, RISK_PCT, PAIRS_MAX_LOSS_PCT)
 
     state["positions"][pos_key] = {
         "strategy": "pairs",
@@ -418,7 +423,7 @@ def scan_pairs(state, prices):
     side = "SHORT BTC + LONG ETH" if direction == -1 else "LONG BTC + SHORT ETH"
     ps(f"[PAIRS] {side} z={z:.2f} BTC=${btc_price:.2f} ETH=${eth_price:.2f} "
        f"size=${pos_size:.0f}")
-    log_daily("pairs", "BTCUSDT+ETHUSDT", "", state["balance"],
+    log_daily("pairs", "BTCUSDT+ETHUSDT", "", total_balance(state),
               f"z={z:.2f} btc={btc_price:.2f} eth={eth_price:.2f}",
               f"ENTRY_z{z:.2f}")
 
