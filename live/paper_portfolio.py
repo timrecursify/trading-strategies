@@ -39,7 +39,19 @@ def load_state():
         except (json.JSONDecodeError, IOError) as e:
             ps(f"ERROR: state file corrupt: {e}")
             sys.exit(1)
-    return {"allocations": {}, "positions": {}, "pending": {}}
+    return {"allocations": _init_allocations(), "positions": {}, "pending": {}}
+
+
+def _init_allocations():
+    """Create $1,000 slot for every (strategy, symbol) combination."""
+    from config.symbols import PAPER_SYMBOLS
+    allocs = {}
+    for sym in PAPER_SYMBOLS:
+        allocs[f"dual_thrust_{sym}"] = SLOT_BALANCE
+        allocs[f"asia_breakout_{sym}"] = SLOT_BALANCE
+        allocs[f"rsi2_{sym}"] = SLOT_BALANCE
+    allocs["pairs_BTCUSDT+ETHUSDT"] = SLOT_BALANCE
+    return allocs
 
 
 def save_state(state):
